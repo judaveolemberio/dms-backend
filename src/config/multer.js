@@ -1,17 +1,36 @@
 const multer = require("multer");
-const path = require("path");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("cloudinary").v2;
 
-// Storage config
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    const uniqueName = Date.now() + path.extname(file.originalname);
-    cb(null, uniqueName);
-  },
+/* ===============================
+   CLOUDINARY CONFIG
+================================ */
+
+cloudinary.config({
+  secure: true // Uses CLOUDINARY_URL from environment variables
 });
 
-const upload = multer({ storage });
+/* ===============================
+   CLOUDINARY STORAGE CONFIG
+================================ */
+
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "dms_uploads", // folder name in Cloudinary
+    resource_type: "auto"  // supports pdf, images, docs, etc.
+  }
+});
+
+/* ===============================
+   MULTER INSTANCE
+================================ */
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
 
 module.exports = upload;

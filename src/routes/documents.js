@@ -72,20 +72,28 @@ router.get("/", authenticateToken, async (req, res) => {
 /* ===============================
    DOWNLOAD DOCUMENT
 ================================ */
+/* ===============================
+   DOWNLOAD DOCUMENT
+================================ */
 router.get("/download/:id", authenticateToken, async (req, res) => {
-  const documentId = parseInt(req.params.id);
+  try {
+    const documentId = parseInt(req.params.id);
 
-  const document = await prisma.documents.findUnique({
-    where: { id: documentId }
-  });
+    const document = await prisma.documents.findUnique({
+      where: { id: documentId }
+    });
 
-  if (!document) {
-    return res.status(404).json({ message: "Document not found" });
+    if (!document) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    // Redirect to Cloudinary file URL
+    return res.redirect(document.file_path);
+
+  } catch (error) {
+    console.error("Download error:", error);
+    res.status(500).json({ message: "Download failed" });
   }
-
-  const filePath = path.join(__dirname, "../../", document.file_path);
-
-  res.download(filePath);
 });
 
 /* ===============================
