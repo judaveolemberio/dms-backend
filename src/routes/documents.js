@@ -8,9 +8,6 @@ const authorizeRole = require("./middleware/roleMiddleware");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-const fs = require("fs");
-const path = require("path");
-
 /* ===============================
    UPLOAD DOCUMENT
 ================================ */
@@ -29,7 +26,7 @@ router.post(
       const savedDocument = await prisma.documents.create({
         data: {
           title: req.file.originalname,
-          file_path: req.file.path,
+          file_path: req.file.path || req.file.secure_url,
           uploaded_by: req.user.id,
           folder_id: folder_id ? parseInt(folder_id) : null
         }
@@ -72,9 +69,6 @@ router.get("/", authenticateToken, async (req, res) => {
 /* ===============================
    DOWNLOAD DOCUMENT
 ================================ */
-/* ===============================
-   DOWNLOAD DOCUMENT
-================================ */
 router.get("/download/:id", authenticateToken, async (req, res) => {
   try {
     const documentId = parseInt(req.params.id);
@@ -104,37 +98,37 @@ router.delete(
   authenticateToken,
   authorizeRole("admin"),
   async (req, res) => {
-    const documentId = parseInt(req.params.id);
+    try {
+      const documentId = parseInt(req.params.id);
 
-    const document = await prisma.documents.findUnique({
-      where: { id: documentId }
-    });
+      const document = await prisma.documents.findUnique({
+        where: { id: documentId }
+      });
 
-    if (!document) {
-      return res.status(404).json({ message: "Document not found" });
-    }
-
-    const filePath = path.join(__dirname, "../../", document.file_path);
-
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-
-    await prisma.documents.delete({
-      where: { id: documentId }
-    });
-
-    // Audit log
-    await prisma.audit_logs.create({
-      data: {
-        action: "DELETE",
-        entity: "DOCUMENT",
-        entity_id: documentId,
-        user_id: req.user.id
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
       }
-    });
 
-    res.json({ message: "Document deleted" });
+      // Delete only from database
+      await prisma.documents.delete({
+        where: { id: documentId }
+      });
+
+      await prisma.audit_logs.create({
+        data: {
+          action: "DELETE",
+          entity: "DOCUMENT",
+          entity_id: documentId,
+          user_id: req.user.id
+        }
+      });
+
+      res.json({ message: "Document deleted successfully" });
+
+    } catch (error) {
+      console.error("Delete error:", error);
+      res.status(500).json({ message: "Delete failed" });
+    }
   }
 );
 
