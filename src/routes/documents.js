@@ -31,8 +31,8 @@ router.post(
       const savedDocument = await prisma.documents.create({
         data: {
           title: req.file.originalname,
-          file_path: req.file.secure_url, // Cloudinary URL
-          public_id: req.file.public_id,  // Needed for delete
+          file_path: req.file.path, // Cloudinary URL
+          public_id: req.file.filename,  // Needed for delete
           uploaded_by: req.user.id,
           folder_id: folder_id ? parseInt(folder_id) : null
         }
