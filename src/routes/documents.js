@@ -8,6 +8,8 @@ const authorizeRole = require("./middleware/roleMiddleware");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
+const cloudinary = require("cloudinary").v2;
+
 /* ===============================
    UPLOAD DOCUMENT
 ================================ */
@@ -21,12 +23,15 @@ router.post(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
+      console.log("FILE DATA:", req.file);
+
       const { folder_id } = req.body;
 
       const savedDocument = await prisma.documents.create({
         data: {
           title: req.file.originalname,
-          file_path: req.file.path || req.file.secure_url,
+          file_path: req.file.secure_url, // Cloudinary URL
+          public_id: req.file.public_id,  // Needed for delete
           uploaded_by: req.user.id,
           folder_id: folder_id ? parseInt(folder_id) : null
         }
@@ -45,7 +50,7 @@ router.post(
       res.status(201).json(savedDocument);
 
     } catch (error) {
-      console.error(error);
+      console.error("Upload error:", error);
       res.status(500).json({ message: "Upload failed" });
     }
   }
@@ -55,15 +60,20 @@ router.post(
    GET ALL DOCUMENTS
 ================================ */
 router.get("/", authenticateToken, async (req, res) => {
-  const documents = await prisma.documents.findMany({
-    include: {
-      users: true,
-      folder: true
-    },
-    orderBy: { uploaded_at: "desc" }
-  });
+  try {
+    const documents = await prisma.documents.findMany({
+      include: {
+        users: true,
+        folder: true
+      },
+      orderBy: { uploaded_at: "desc" }
+    });
 
-  res.json(documents);
+    res.json(documents);
+  } catch (error) {
+    console.error("Fetch error:", error);
+    res.status(500).json({ message: "Failed to fetch documents" });
+  }
 });
 
 /* ===============================
@@ -91,7 +101,7 @@ router.get("/download/:id", authenticateToken, async (req, res) => {
 });
 
 /* ===============================
-   DELETE DOCUMENT (ADMIN)
+   DELETE DOCUMENT (ADMIN ONLY)
 ================================ */
 router.delete(
   "/:id",
@@ -109,11 +119,19 @@ router.delete(
         return res.status(404).json({ message: "Document not found" });
       }
 
-      // Delete only from database
+      // 🔥 Delete from Cloudinary first
+      if (document.public_id) {
+        await cloudinary.uploader.destroy(document.public_id, {
+          resource_type: "raw" // Important for PDFs
+        });
+      }
+
+      // Then delete from database
       await prisma.documents.delete({
         where: { id: documentId }
       });
 
+      // Audit log
       await prisma.audit_logs.create({
         data: {
           action: "DELETE",
