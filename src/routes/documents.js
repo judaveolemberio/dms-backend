@@ -9,6 +9,7 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 const cloudinary = require("cloudinary").v2;
+cloudinary.config({ secure: true });
 
 /* ===============================
    UPLOAD DOCUMENT
